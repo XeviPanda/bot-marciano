@@ -3,7 +3,7 @@ telegram.py — Manda los mensajes y, si toca, los ancla.
 
 Dos sitios distintos, y los dos son opcionales por separado:
 
-  · TELEGRAM_CANAL       → el canal de difusión (el de siempre: @redmarcianarss).
+  · TELEGRAM_CANAL       → el canal de difusión (@redmarcianapods).
   · TELEGRAM_CANAL_CHAT  → el canal/grupo de charla. Si lo pones, además de
                            publicar ahí, el bot ancla el mensaje.
 
@@ -20,6 +20,10 @@ API = "https://api.telegram.org/bot{token}/{metodo}"
 
 # Telegram no deja pasar de 1024 caracteres en el pie de una foto.
 LIMITE_PIE_DE_FOTO = 1024
+
+# El emoji que abre todos los mensajes. El de la derecha es distinto para cada
+# podcast y se elige en podcasts.py.
+EMOJI_DE_TODOS = "🎙️"
 
 
 def _token():
@@ -38,7 +42,7 @@ def canal_difusion():
         raise SystemExit(
             "❌ Falta el canal donde publicar.\n"
             "   En GitHub: Settings → Secrets and variables → Actions → TELEGRAM_CANAL\n"
-            "   (vale '@redmarcianarss' o el número que empieza por -100)"
+            "   (vale '@redmarcianapods' o el número que empieza por -100)"
         )
     return destino
 
@@ -81,7 +85,11 @@ def formatear(episodio):
     """Monta el texto que acompaña a la portada."""
     escapar = html.escape
 
-    partes = [f"🎙️ <b>{escapar(episodio['podcast'])}</b>", ""]
+    cabecera = f"{EMOJI_DE_TODOS} <b>{escapar(episodio['podcast'])}</b>"
+    if episodio.get("emoji"):
+        cabecera += f" {episodio['emoji']}"
+
+    partes = [cabecera, ""]
     partes.append(f"<b>{escapar(episodio['titulo'])}</b>")
 
     if episodio.get("descripcion"):

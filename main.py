@@ -118,6 +118,7 @@ def main():
             "portada": "",
             "url": "https://www.ivoox.com",
             "spotify": "",
+            "emoji": "🤖",
         })
         return 0
 
@@ -170,6 +171,7 @@ def main():
             if not ficha["podcast"]:
                 ficha["podcast"] = nombre
             ficha["spotify"] = podcast.get("spotify", "")
+            ficha["emoji"] = podcast.get("emoji", "")
 
             print(f"   · {ficha['titulo'][:70]}")
 

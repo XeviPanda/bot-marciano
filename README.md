@@ -101,6 +101,19 @@ Ahora mismo vigila **El Aftershow**, **Marcianos en un Tren** y **Jugones**. Al 
 del archivo están *Ficción Marciana* y *Área 51*, apagados a propósito y listos para
 volver con quitarles las almohadillas.
 
+### El emoji de cada podcast
+
+También en `podcasts.py`. Cada uno tiene el suyo y sale a la derecha del nombre:
+
+```
+🎙️ El Aftershow 📺
+🎙️ Marcianos en un Tren 🚂
+🎙️ Jugones 👾
+```
+
+Cambiarlo es pegar otro emoji en su línea. Si dejas `""`, sale solo el micrófono.
+El micrófono es igual para todos y está en `telegram.py`, en `EMOJI_DE_TODOS`.
+
 ### Cada cuánto mira
 
 En `check.yml`: `- cron: '15 10,11,22,23 * * *'`.

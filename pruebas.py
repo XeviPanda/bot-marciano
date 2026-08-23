@@ -165,13 +165,20 @@ EPISODIO = {
     "portada": "https://static-1.ivoox.com/portada.jpg",
     "url": "https://www.ivoox.com/episodio.html",
     "spotify": "https://open.spotify.com/show/xxx",
+    "emoji": "📺",
 }
 
 
 def prueba_mensaje():
     texto = telegram.formatear(EPISODIO)
 
-    comprobar("El nombre del podcast va arriba", texto.startswith("🎙️ <b>El Aftershow</b>"))
+    comprobar("El nombre del podcast va arriba, con su emoji al lado",
+              texto.startswith("🎙️ <b>El Aftershow</b> 📺"),
+              f"salió {texto.splitlines()[0]!r}")
+
+    sin_emoji = telegram.formatear(dict(EPISODIO, emoji=""))
+    comprobar("Sin emoji propio, sale solo el micrófono",
+              sin_emoji.startswith("🎙️ <b>El Aftershow</b>\n"))
     comprobar("Los signos raros del título no rompen el mensaje",
               "&lt;con un signo raro&gt;" in texto)
     comprobar("Sale la duración", "1 h 5 min" in texto)
