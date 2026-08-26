@@ -189,6 +189,20 @@ def prueba_mensaje():
               f"salió {len(telegram.formatear(gigante))}")
 
 
+def prueba_el_nombre_lo_ponemos_nosotros():
+    """iVoox devuelve "Marcianos en un Tren." con punto final. Usamos el nuestro."""
+    ivoox._descargar = lambda url: pagina_de_episodio("Un episodio")
+    ficha = ivoox.detalle("https://ejemplo", "1315616")
+
+    # Así es como lo hace main.py: el nombre bueno es el de podcasts.py.
+    ficha["podcast"] = "Marcianos en un Tren"
+    ficha["emoji"] = "🚂"
+
+    comprobar("El nombre sale como lo tenemos escrito nosotros",
+              telegram.formatear(ficha).startswith("🎙️ <b>Marcianos en un Tren</b> 🚂"),
+              f"salió {telegram.formatear(ficha).splitlines()[0]!r}")
+
+
 def prueba_botones():
     con = telegram.botones(EPISODIO)
     comprobar("Con Spotify salen dos botones",
@@ -296,6 +310,7 @@ def todas():
     prueba_duraciones()
     prueba_recorte()
     prueba_mensaje()
+    prueba_el_nombre_lo_ponemos_nosotros()
     prueba_botones()
     prueba_estreno_silencioso()
     prueba_modo_estreno()

@@ -167,9 +167,11 @@ def main():
                 estado["ultimos"][podcast["id_ivoox"]] = episodio["id"]
                 continue
 
-            # Si el nombre del podcast en iVoox se ve raro, usamos el nuestro.
-            if not ficha["podcast"]:
-                ficha["podcast"] = nombre
+            # El nombre lo ponemos NOSOTROS, el de podcasts.py. El que devuelve
+            # iVoox viene tal cual lo tenga la ficha y a veces trae cosas raras
+            # (el de Marcianos, por ejemplo, lleva un punto final: "Marcianos en
+            # un Tren."). Así el mensaje sale siempre igual y tú lo controlas.
+            ficha["podcast"] = nombre
             ficha["spotify"] = podcast.get("spotify", "")
             ficha["emoji"] = podcast.get("emoji", "")
 
