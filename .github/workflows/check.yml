@@ -1,33 +1,28 @@
 name: Buscar podcasts nuevos
 
 on:
-  # OJO: los horarios de GitHub van en hora UTC y NO cambian con el horario de
-  # verano. España es UTC+2 en verano y UTC+1 en invierno, así que cada hora que
-  # queremos aquí aparece DOS veces, una para cada mitad del año. La que no toca
-  # se ejecuta una hora antes o después: mira, no ve nada nuevo y se calla.
+  # Una sola línea, cada dos horas, en el minuto 17.
   #
-  # Y otra cosa importante: la hora que pides NO es la hora a la que se ejecuta.
-  # GitHub te mete en una cola y te atiende cuando puede. Medido en este mismo
-  # repositorio: entre 17 y 32 minutos tarde, siempre. Por eso los minutos son
-  # raros (:07 y :53 en vez de :00 o :15): cuanto menos redondo es el minuto,
-  # menos gente hay pidiendo turno y menos se alarga la cola.
+  # Por qué así, que tiene su historia. Al principio pedíamos horas concretas
+  # (las 00:07 de España, etc.) y encima dobladas, porque los horarios de GitHub
+  # van en UTC y no cambian con el horario de verano. No funcionó: GitHub no te
+  # da una cita, te mete en una cola, y medido en este mismo repositorio los
+  # retrasos iban de 1 h 35 a más de 4 horas. Además, de las diez horas que
+  # pedíamos solo lanzaba cinco.
   #
-  # En hora de España, esto es lo que pedimos:
+  # Así que dejamos de pelearnos con la hora exacta. Con una pasada cada dos
+  # horas da igual que GitHub llegue tarde y da igual el horario de verano:
+  # nunca pasamos mucho rato sin mirar, suba el episodio a la hora que suba.
+  # (El 3 de septiembre de 2026 un Marcianos subió a media mañana en vez de a
+  # las 00:03, cayó en un agujero de trece horas y tardó todo el día en salir.
+  # Esto es para que eso no vuelva a pasar.)
   #
-  #   00:07  →  los episodios salen a las 00:03. Esta es la buena.
-  #   00:53  →  repesca, por si la primera se quedó atascada en la cola.
-  #   01:43  →  última red de seguridad de la noche.
-  #   12:07  →  el Aftershow a veces sale a mediodía.
-  #   12:53  →  repesca del mediodía.
+  # El minuto 17 no es capricho: en los minutos redondos (:00, :15, :30) es
+  # cuando todo el mundo ha programado lo suyo y la cola se alarga.
   #
-  # Son 10 ejecuciones al día. En un repositorio público los minutos son
-  # gratis e ilimitados, así que da igual.
+  # Son 12 ejecuciones al día. Repositorio público = minutos gratis.
   schedule:
-    - cron: '7 22,23 * * *'    # las 00:07 de España
-    - cron: '53 22,23 * * *'   # las 00:53
-    - cron: '43 23,0 * * *'    # la 01:43
-    - cron: '7 10,11 * * *'    # las 12:07
-    - cron: '53 10,11 * * *'   # las 12:53
+    - cron: '17 */2 * * *'
 
   # Este botón permite lanzarlo a mano desde la pestaña Actions de GitHub.
   workflow_dispatch:
