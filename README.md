@@ -116,19 +116,24 @@ El micrófono es igual para todos y está en `telegram.py`, en `EMOJI_DE_TODOS`.
 
 ### Cada cuánto mira
 
-En `check.yml`: `- cron: '15 10,11,22,23 * * *'`.
+En `check.yml`: `- cron: '17 */2 * * *'`. Una pasada **cada dos horas**, doce al día.
 
-Los horarios de GitHub van en **hora UTC y no cambian con el horario de verano**.
-España es UTC+2 en verano y UTC+1 en invierno, así que cada hora que queremos
-aparece dos veces, una para cada mitad del año:
+Esto empezó siendo un horario fino (a las 00:07, justo después de que salgan los
+episodios) y acabó siendo esto. La razón es que **la hora que le pides a GitHub no
+es la hora a la que se ejecuta**: no te da una cita, te mete en una cola y te
+atiende cuando tiene hueco. Medido en este repositorio, los retrasos iban de hora y
+media a más de cuatro horas, y de las diez horas que pedíamos solo lanzaba cinco.
 
-- **22:15 y 23:15 UTC** → las 00:15 de España. Marcianos sale los jueves a las 00:03,
-  y el Aftershow suele salir a esa misma hora.
-- **10:15 y 11:15 UTC** → las 12:15 de España, porque el Aftershow a veces sale a
-  mediodía.
+Con una pasada cada dos horas eso deja de importar: llegue GitHub cuando llegue, el
+episodio nunca espera mucho. Y desaparece de paso el lío del horario de verano
+(España es UTC+2 en verano y UTC+1 en invierno, y los cron de GitHub van en UTC sin
+enterarse del cambio), porque una hora arriba o abajo da igual.
 
-La ejecución que no toca se lanza una hora antes o después, mira y se calla. Son
-cuatro al día, unas 120 al mes.
+El minuto 17 tampoco es capricho: en los minutos redondos es cuando todo el mundo
+ha programado lo suyo y la cola se dispara.
+
+Si algún día quieres más cobertura, `'17 * * * *'` es cada hora. En un repositorio
+público los minutos de Actions son gratis e ilimitados.
 
 ---
 
