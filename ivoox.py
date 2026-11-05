@@ -54,6 +54,14 @@ EPISODIOS_QUE_MIRAMOS = 25
 def _descargar(url):
     respuesta = requests.get(url, headers=CABECERAS, timeout=TIEMPO_MAXIMO)
     respuesta.raise_for_status()
+
+    # Cuando el servidor no dice en qué juego de caracteres manda el texto, la
+    # librería supone ISO-8859-1, que es el de hace treinta años. iVoox manda
+    # UTF-8 y no lo dice, así que sin esta línea los acentos salen rotos:
+    # "Prepárate" se convierte en "PrepÃ¡rate". Nos pasó el 5 nov 2026.
+    if not respuesta.encoding or respuesta.encoding.lower() in ("iso-8859-1", "latin-1"):
+        respuesta.encoding = "utf-8"
+
     return respuesta.text
 
 
@@ -79,7 +87,8 @@ def desde_el_rss(id_ivoox):
 
     Como el RSS ya trae todos los datos, no hace falta pedir nada más.
     """
-    arbol = ET.fromstring(_descargar(FEED.format(id_ivoox=id_ivoox)))
+    # Se lo damos en bytes para que el propio XML diga cómo está escrito.
+    arbol = ET.fromstring(_descargar(FEED.format(id_ivoox=id_ivoox)).encode("utf-8"))
 
     episodios = []
     for item in arbol.iter("item"):

@@ -72,9 +72,9 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0"><channel>
   <title>Marcianos en un Tren.</title>
   <item>
-    <title><![CDATA[MAR 540. Chris Claremont]]></title>
+    <title><![CDATA[MAR 540. Chris Claremont y los X-Men]]></title>
     <link>https://www.ivoox.com/mar-540-audios-mp3_rf_300_1.html</link>
-    <description><![CDATA[Una descripcion normal.&#13;
+    <description><![CDATA[Prepárate: una descripción con acentos, eñes y símbolos.&#13;
 &#13;
 &#x2800;&#x2800;&#x28FF;&#x28FF;&#x28FF;&#x2800;&#x2800;&#x2800;&#x2800;&#x28FF;&#x28FF;&#x28FF;&#x2800;&#x2800;&#13;
 Y una segunda linea con texto de verdad.]]></description>
@@ -110,10 +110,13 @@ def prueba_rss():
     comprobar("Lo que no tiene numero de episodio no se cuela", len(eps) == 2)
 
     f = eps[0]["ficha"]
-    comprobar("El RSS ya trae el titulo", f["titulo"] == "MAR 540. Chris Claremont")
+    comprobar("El RSS ya trae el titulo", f["titulo"] == "MAR 540. Chris Claremont y los X-Men")
     comprobar("El RSS ya trae la portada", f["portada"].endswith("portada_XXL.jpg"))
     comprobar("El RSS ya trae la duracion", f["duracion"] == "2 h 2 min",
               f"salio {f['duracion']!r}")
+    comprobar("Los acentos y las eñes llegan enteros",
+              f["descripcion"].startswith("Prepárate: una descripción con acentos, eñes"),
+              f"salió {f['descripcion'][:60]!r}")
     comprobar("Y tambien limpia los dibujos de puntitos",
               "⣿" not in f["descripcion"] and "segunda linea" in f["descripcion"],
               f"salio {f['descripcion']!r}")
