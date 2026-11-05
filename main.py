@@ -2,7 +2,8 @@
 main.py — El director de orquesta.
 
 Lo que hace, en orden:
-  1. Mira la web de cada podcast de la lista (podcasts.py).
+  1. Mira el RSS de cada podcast de la lista (podcasts.py); si el RSS
+     falla, su página web.
   2. Compara con estado.json, donde guardamos el número del último episodio
      del que ya avisamos.
   3. De lo que sea nuevo, lee la ficha y lo publica en Telegram.
@@ -18,6 +19,7 @@ Formas de ejecutarlo:
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 import sys
 import time
 import traceback
@@ -28,38 +30,79 @@ import telegram
 
 ARCHIVO_ESTADO = "estado.json"
 
-# Si un podcast aparece de golpe con más episodios nuevos que esto, algo raro
-# pasa (iVoox ha rediseñado la web, o hemos estado semanas parados). En vez de
-# soltar quince mensajes seguidos, avisamos solo del último y apuntamos el resto
-# en silencio.
+# Si de golpe hay más episodios nuevos que esto, algo raro pasa. En vez de soltar
+# quince mensajes seguidos, avisamos solo del último y apuntamos el resto en silencio.
 MAXIMO_AVISOS_DE_GOLPE = 4
+
+# No avisamos de episodios más viejos que esto. Es la red de seguridad por si
+# iVoox reordena su catálogo o resucita algo antiguo: que no te llegue de madrugada
+# un aviso de un programa de hace dos años.
+DIAS_DE_GRACIA = 10
+
+# Cuántos episodios recordamos. Con esto hay de sobra para no repetir nada, y el
+# archivo se queda en unos pocos kilobytes para siempre.
+CUANTOS_RECORDAMOS = 400
 
 
 # ---------------------------------------------------------------------------
 # La memoria
 # ---------------------------------------------------------------------------
-# estado.json es diminuto y no crece nunca. Guarda una sola cosa por podcast:
-# el número del episodio más nuevo del que ya hemos avisado.
+# estado.json guarda la LISTA de episodios de los que ya hemos avisado:
 #
-#   {"ultimos": {"1315616": 179260903, "1311035": 179082223}}
+#   {"avisados": [182949557, 182953194, ...]}
+#
+# Antes guardábamos solo el número más alto, dando por hecho que los números
+# van siempre a más. NO ES VERDAD, y nos costó un episodio:
+#
+#   MAR 536  salió el  8 oct  con el número 181850904
+#   MAR 537  salió el 15 oct  con el número 181699760   ← ¡más bajo!
+#
+# iVoox pone el número cuando SUBES el episodio, no cuando se publica. Como Xevi
+# los deja programados con antelación, uno grabado antes puede salir después y
+# llevar un número menor. Con la regla del "más alto gana", el MAR 537 se dio por
+# visto sin haberse publicado nunca. Por eso ahora guardamos la lista entera.
 
 def cargar_estado():
     if not os.path.exists(ARCHIVO_ESTADO):
-        return {"ultimos": {}}
+        return {"avisados": []}
     try:
         with open(ARCHIVO_ESTADO, encoding="utf-8") as archivo:
             datos = json.load(archivo)
-        datos.setdefault("ultimos", {})
-        return datos
     except Exception:
         print("⚠️  estado.json ilegible. Empiezo de cero: esta vez no aviso de nada.")
-        return {"ultimos": {}}
+        return {"avisados": []}
+
+    if "avisados" in datos:
+        datos["avisados"] = [int(x) for x in datos["avisados"]]
+        return datos
+
+    # Archivo del formato viejo (el de "ultimos"): no sabemos de qué se avisó
+    # exactamente, así que empezamos de cero y nos callamos esta vez.
+    print("⚠️  estado.json es del formato viejo. Apunto lo que hay y no aviso de nada.")
+    return {"avisados": []}
 
 
 def guardar_estado(estado):
     with open(ARCHIVO_ESTADO, "w", encoding="utf-8") as archivo:
-        json.dump({"ultimos": estado["ultimos"]}, archivo,
-                  ensure_ascii=False, indent=1, sort_keys=True)
+        json.dump({"avisados": estado["avisados"][-CUANTOS_RECORDAMOS:]},
+                  archivo, ensure_ascii=False, indent=1)
+
+
+def apuntar(estado, episodios):
+    """Da por vistos estos episodios, sin repetirlos ni perder el orden."""
+    ya = set(estado["avisados"])
+    for episodio in episodios:
+        if episodio["id"] not in ya:
+            estado["avisados"].append(episodio["id"])
+            ya.add(episodio["id"])
+
+
+def es_reciente(episodio):
+    """¿Es de los últimos días? Si iVoox no da la fecha, lo damos por bueno."""
+    if not episodio.get("fecha"):
+        return True
+    edad = datetime.now(timezone.utc) - episodio["fecha"]
+    return edad <= timedelta(days=DIAS_DE_GRACIA)
 
 
 # ---------------------------------------------------------------------------
@@ -70,39 +113,38 @@ def episodios_nuevos_de(podcast, estado, estrenar=False):
     """
     Devuelve los episodios nuevos de un podcast, del más viejo al más nuevo,
     y si es la primera vez que lo miramos.
-
-    Con estrenar=True, la primera vez que vemos un podcast publicamos su último
-    episodio en vez de callarnos. Es para el día que abres el canal y no quieres
-    que se quede vacío hasta el siguiente programa.
     """
-    id_ivoox = podcast["id_ivoox"]
-    visibles = ivoox.episodios_visibles(id_ivoox)
+    visibles = ivoox.episodios_visibles(podcast["id_ivoox"])
 
     if not visibles:
         raise RuntimeError("no he encontrado ni un episodio (¿ha cambiado la web?)")
 
-    ultimo_avisado = estado["ultimos"].get(id_ivoox)
-
-    # Primera vez que vemos este podcast: apuntamos dónde está y NO avisamos.
-    # Si no, el primer día llegarían cientos de mensajes con episodios viejos.
-    if ultimo_avisado is None:
+    # Primera vez de todas: apuntamos lo que hay y NO avisamos. Si no, el primer
+    # día llegarían cientos de mensajes con episodios viejos. (Con --estreno sí
+    # sacamos el último de cada uno, para que un canal nuevo no nazca vacío.)
+    if not estado["avisados"]:
         if estrenar:
-            # Damos por vistos todos menos el último, que sí publicamos.
-            anterior = visibles[1]["id"] if len(visibles) > 1 else visibles[0]["id"] - 1
-            estado["ultimos"][id_ivoox] = anterior
+            apuntar(estado, visibles[1:])
             return [visibles[0]], False
-
-        estado["ultimos"][id_ivoox] = visibles[0]["id"]
+        apuntar(estado, visibles)
         return [], True
 
-    nuevos = [e for e in visibles if e["id"] > ultimo_avisado]
-    nuevos.reverse()  # del más viejo al más nuevo, que es el orden natural
+    ya = set(estado["avisados"])
+    nuevos = [e for e in visibles if e["id"] not in ya and es_reciente(e)]
+
+    # Del más viejo al más nuevo, que es el orden natural para leerlos.
+    nuevos.sort(key=lambda e: (e["fecha"] is None, e["fecha"] or 0, e["id"]))
 
     if len(nuevos) > MAXIMO_AVISOS_DE_GOLPE:
-        print(f"   ⚠️  {len(nuevos)} episodios nuevos de golpe. Aviso solo del último "
-              f"y apunto los demás en silencio.")
-        estado["ultimos"][id_ivoox] = nuevos[-2]["id"]
+        print(f"   ⚠️  {len(nuevos)} episodios nuevos de golpe. Aviso solo del último.")
         nuevos = nuevos[-1:]
+
+    # Damos por vistos todos los que NO vamos a anunciar: los viejos y los que
+    # ha descartado el guardián. De los que sí anunciamos se encarga main(),
+    # cuando el mensaje haya salido de verdad: si Telegram falla, queremos
+    # reintentarlo en la siguiente pasada, no darlo por hecho.
+    a_anunciar = {e["id"] for e in nuevos}
+    apuntar(estado, [e for e in visibles if e["id"] not in a_anunciar])
 
     return nuevos, False
 
@@ -155,8 +197,11 @@ def main():
         print(f"   🎉 {len(nuevos)} episodio(s) nuevo(s)")
 
         for episodio in nuevos:
+            # Si venimos del RSS la ficha ya está hecha. Si venimos de la web,
+            # hay que pedir la página del episodio para sacarla.
             try:
-                ficha = ivoox.detalle(episodio["url"], podcast["id_ivoox"])
+                ficha = episodio.get("ficha") or ivoox.detalle(
+                    episodio["url"], podcast["id_ivoox"])
             except Exception as error:
                 print(f"   ❌ no he podido leer {episodio['url']}: {error}")
                 print("      Lo dejo para la próxima vez.")
@@ -164,7 +209,7 @@ def main():
 
             if ficha is None:
                 print(f"   ↷ {episodio['id']} no es de este podcast (recomendado). Lo salto.")
-                estado["ultimos"][podcast["id_ivoox"]] = episodio["id"]
+                apuntar(estado, [episodio])
                 continue
 
             # El nombre lo ponemos NOSOTROS, el de podcasts.py. El que devuelve
@@ -178,12 +223,11 @@ def main():
             print(f"   · {ficha['titulo'][:70]}")
 
             if modo_seco:
-                estado["ultimos"][podcast["id_ivoox"]] = episodio["id"]
                 continue
 
             if telegram.publicar(ficha):
                 publicados += 1
-                estado["ultimos"][podcast["id_ivoox"]] = episodio["id"]
+                apuntar(estado, [episodio])   # ya está fuera: no repetirlo
                 time.sleep(2)
             else:
                 print("      No ha salido. Lo dejo para la próxima vez.")

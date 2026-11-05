@@ -2,11 +2,17 @@
 
 Avisa en Telegram cuando Red Marciana publica un podcast nuevo.
 
-Sustituye al viejo `@ivooxrssbot`, que dependía del RSS de iVoox. El **23 de agosto
-de 2026** comprobamos que los feeds RSS de *El Aftershow* y *Marcianos en un Tren*
-llevaban meses congelados (servían siempre los mismos 100 episodios) aunque en la
-web seguían saliendo programas nuevos. Es un fallo de iVoox, no del bot. Por eso
-este lee **la web**, que sí está al día.
+Sustituye al viejo `@ivooxrssbot`. Lee **dos sitios y usa el que funcione**: primero
+el RSS del podcast, y si el RSS falla, la página web. No es paranoia, es que los dos
+se han roto ya, cada uno por su lado:
+
+- **Mayo 2026** — los RSS de El Aftershow y Marcianos se congelaron: servían siempre
+  los mismos 100 episodios aunque la web estuviera al día. Por eso el bot nació
+  leyendo la web.
+- **Noviembre 2026** — iVoox empezó a devolver *502 Bad Gateway* a las peticiones que
+  salen de los servidores de GitHub, y el bot se calló tres días. Desde casa la web
+  se veía perfectamente. A la vez, iVoox arregló los RSS, que ahora traen el catálogo
+  completo. Así que ahora el RSS es el camino principal y la web, el plan B.
 
 ## Dónde publica
 
@@ -153,12 +159,26 @@ publicar nada. Si algo estuviera roto, se para ahí y no manda mensajes raros.
 
 ## Cómo sabe qué es nuevo
 
-Cada episodio de iVoox tiene un número en su dirección (`..._rf_179260903_1.html`)
-y ese número **siempre va a más**. El bot guarda en `estado.json` el número del
-último episodio del que avisó, y todo lo que tenga un número mayor es nuevo.
+En `estado.json` guarda la **lista** de episodios de los que ya ha avisado, por su
+número (el que sale en la dirección: `..._rf_182949557_1.html`). Lo que no esté en
+esa lista y se haya publicado en los últimos diez días, se avisa.
 
-Ni fechas ni RSS ni nada que se pueda congelar. Y `estado.json` no crece nunca:
-son tres números.
+Antes guardaba solo el número más alto, dando por hecho que los números van siempre
+a más. **No es verdad, y nos costó un episodio:**
+
+```
+MAR 536  salió el  8 oct  con el número 181850904
+MAR 537  salió el 15 oct  con el número 181699760   ← más bajo
+```
+
+iVoox pone el número cuando **subes** el episodio, no cuando se publica. Como los
+dejas programados con antelación, uno grabado antes puede salir después y llevar un
+número menor. Con la regla vieja, el MAR 537 se dio por visto sin haberse publicado
+nunca, y nadie se enteró. Por eso ahora se guarda la lista entera.
+
+Lo de los diez días es la red de seguridad: si iVoox reordena su catálogo o resucita
+algo antiguo, que no te llegue de madrugada un aviso de un programa de hace dos años.
+La lista se queda en los últimos 400 episodios, así que el archivo no crece: un kilobyte.
 
 ## Si algo va mal
 
