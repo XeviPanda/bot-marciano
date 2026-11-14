@@ -20,7 +20,9 @@ on:
   # El minuto 17 no es capricho: en los minutos redondos (:00, :15, :30) es
   # cuando todo el mundo ha programado lo suyo y la cola se alarga.
   #
-  # Son 12 ejecuciones al día. Repositorio público = minutos gratis.
+  # Pedimos 12 pasadas al día, pero GitHub hace las que quiere: unas 5 en
+  # septiembre de 2026 y solo unas 3 en noviembre. No es cuestión de dinero
+  # (repositorio público = minutos gratis), es que no garantiza los horarios.
   schedule:
     - cron: '17 */2 * * *'
 
@@ -77,14 +79,20 @@ jobs:
             *)       python main.py ;;
           esac
 
+      # "if: always()" = guarda aunque el paso anterior haya acabado en error. Si
+      # el bot publicó dos episodios y se cayó en el tercero, queremos apuntar los
+      # dos que sí salieron, o la próxima pasada los repetiría.
       - name: Guardar por dónde vamos
+        if: always()
         run: |
           if [ -n "$(git status --porcelain estado.json)" ]; then
             git config user.name  "Bot Marciano"
             git config user.email "actions@github.com"
             git add estado.json
             git commit -m "Actualizar episodios ya avisados"
-            git push
+            # Si alguien ha subido cambios al repositorio mientras el bot
+            # trabajaba, el primer intento falla: nos ponemos al día y repetimos.
+            git push || (git pull --rebase && git push)
           else
             echo "Sin cambios en estado.json"
           fi
