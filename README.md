@@ -85,7 +85,7 @@ modos en el desplegable:
 | Modo | Qué hace |
 |---|---|
 | **prueba** | Manda un mensaje de mentira. Si llega, Telegram está bien montado |
-| **seco** | Mira las webs y escribe en el registro qué publicaría, sin publicar nada |
+| **seco** | Mira iVoox y escribe en el registro qué publicaría, sin publicar nada. Si no hay nada nuevo, enseña cómo saldría el último episodio, con sus botones |
 | **estreno** | **Solo el primer día.** Publica el último episodio de cada podcast, para que el canal no nazca vacío |
 | **normal** | Lo de verdad. Es también lo que hace solo cada día |
 

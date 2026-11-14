@@ -682,6 +682,21 @@ def prueba_ensayo_general(tmp="estado_de_ensayo.json"):
         with contextlib.redirect_stdout(io.StringIO()):
             main.main()
         comprobar("Ensayo: una segunda pasada no repite nada", enviados == [])
+
+        # El modo --seco: no publica, no guarda, y si no hay nada nuevo enseña
+        # cómo saldría el último episodio, con sus botones.
+        antes = open(tmp, encoding="utf-8").read()
+        main.sys.argv = ["main.py", "--seco"]
+        registro = io.StringIO()
+        with contextlib.redirect_stdout(registro):
+            salida = main.main()
+        comprobar("Seco: no publica nada", salida == 0 and enviados == [])
+        comprobar("Seco: no toca el estado", open(tmp, encoding="utf-8").read() == antes)
+        comprobar("Seco: enseña el último episodio con sus botones y adónde van",
+                  "HACKERS 01" in registro.getvalue()
+                  and "[🟣 Apple] → https://podcasts.apple.com/es/podcast/hackers/id123?i=9"
+                  in registro.getvalue(),
+                  registro.getvalue()[-400:])
     finally:
         (main.ARCHIVO_ESTADO, main.podcasts.PODCASTS, main.sys.argv, main.time.sleep,
          ivoox._descargar, ivoox.episodios_visibles, apple.requests.get,

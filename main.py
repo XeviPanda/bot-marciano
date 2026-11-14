@@ -12,7 +12,8 @@ Lo que hace, en orden:
 Formas de ejecutarlo:
   python main.py            → funcionamiento normal
   python main.py --prueba   → manda un mensaje de mentira, para ver que Telegram va
-  python main.py --seco     → mira las webs y enseña qué haría, SIN publicar nada
+  python main.py --seco     → mira iVoox y enseña qué haría, SIN publicar nada. Si no
+                              hay nada nuevo, enseña cómo saldría el último episodio
   python main.py --estreno  → para el día que estrenas canal: publica el último
                               episodio de cada podcast para que no quede vacío
 """
@@ -178,6 +179,32 @@ def donde_mas_escucharlo(podcast, episodio, ficha):
     }
 
 
+def enseñar_botones(ficha):
+    """Escribe en el registro qué botones llevaría el mensaje y adónde van."""
+    for fila in telegram.botones(ficha)["inline_keyboard"]:
+        for boton in fila:
+            print(f"       [{boton['text']}] → {boton['url']}")
+
+
+def ensayo_con_el_ultimo(podcast):
+    """
+    Para el modo --seco cuando no hay nada nuevo: enseña cómo saldría el último
+    episodio que ya está publicado. Así un ensayo siempre enseña algo, y sirve
+    para comprobar los botones sin esperar a que salga un programa.
+    """
+    try:
+        ultimo = ivoox.episodios_visibles(podcast["id_ivoox"])[0]
+        ficha = ultimo.get("ficha") or ivoox.detalle(ultimo["url"], podcast["id_ivoox"])
+        if not ficha:
+            return
+        ficha.update(donde_mas_escucharlo(podcast, ultimo, ficha))
+        print("   👀 así saldría el último que hay:")
+        print(f"     · {ficha['titulo'][:70]}" + ("  🔒" if ficha.get("de_pago") else ""))
+        enseñar_botones(ficha)
+    except Exception as error:
+        print(f"   (no he podido preparar el ensayo: {type(error).__name__}: {error})")
+
+
 def main():
     if "--prueba" in sys.argv:
         print("Enviando mensaje de prueba…")
@@ -220,6 +247,8 @@ def main():
 
         if not nuevos:
             print("   😴 nada nuevo.")
+            if modo_seco:
+                ensayo_con_el_ultimo(podcast)
             continue
 
         print(f"   🎉 {len(nuevos)} episodio(s) nuevo(s)")
@@ -251,8 +280,7 @@ def main():
             print(f"   · {ficha['titulo'][:70]}" + ("  🔒" if ficha.get("de_pago") else ""))
 
             if modo_seco:
-                botones = telegram.botones(ficha)["inline_keyboard"]
-                print("     botones: " + " | ".join(b["text"] for fila in botones for b in fila))
+                enseñar_botones(ficha)
                 continue
 
             if telegram.publicar(ficha):
