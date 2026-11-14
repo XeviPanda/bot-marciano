@@ -45,6 +45,7 @@ Sube estos archivos respetando las carpetas:
 ```
 main.py
 ivoox.py
+apple.py
 telegram.py
 podcasts.py
 pruebas.py
@@ -120,9 +121,49 @@ También en `podcasts.py`. Cada uno tiene el suyo y sale a la derecha del nombre
 Cambiarlo es pegar otro emoji en su línea. Si dejas `""`, sale solo el micrófono.
 El micrófono es igual para todos y está en `telegram.py`, en `EMOJI_DE_TODOS`.
 
+### Los botones de "escuchar aquí"
+
+Debajo de cada mensaje sale iVoox a todo lo ancho y, en una segunda fila, los demás
+sitios donde esté el programa:
+
+```
+[        ▶️ Escuchar en iVoox        ]
+[ 🟣 Apple ] [ 🟢 Spotify ] [ 🎧 Podimo ]
+```
+
+Qué botones lleva cada podcast se decide en `podcasts.py`: lo que esté relleno
+sale, lo que esté en `""` no. Así quedó en noviembre de 2026, comprobado uno a uno:
+
+| | Apple | Spotify | Podimo |
+|---|---|---|---|
+| El Aftershow | ✅ | ✅ | ✅ |
+| Marcianos en un Tren | ✅ | ❌ parado en el MAR 457 (marzo 2025) | ✅ |
+| Jugones | ✅ | ❌ no está | ❌ no está (hay otro "Jugones", de deportes) |
+
+La regla: **solo sitios donde el programa esté al día.** Un botón que lleva a un
+sitio donde el episodio no está es peor que no tener botón.
+
+El de **Apple** va directo al episodio: el bot se lo pregunta al buscador público
+de Apple (`apple.py`). Si Apple todavía no se ha enterado del episodio nuevo, o no
+contesta, el botón lleva al programa. Los de Spotify y Podimo llevan siempre al
+programa, donde el episodio nuevo es el primero de la lista.
+
+El texto y el orden de los botones se cambian en `telegram.py`, arriba del todo.
+
+### Los episodios de mecenas
+
+iVoox los marca empezando la descripción con su frase de *"Agradece a este
+podcast… ¡Apóyale en iVoox!"*. El bot la reconoce y hace tres cosas: quita esa
+frase, pone debajo del título **🔒 Episodio para mecenas** y deja un único botón,
+el de iVoox, que es el único sitio donde se pueden escuchar.
+
+Si prefieres que salgan como los demás, en `telegram.py` deja `AVISO_MECENAS = ""`.
+
 ### Cada cuánto mira
 
-En `check.yml`: `- cron: '17 */2 * * *'`. Una pasada **cada dos horas**, doce al día.
+En `check.yml`: `- cron: '17 */2 * * *'`. Le pedimos una pasada **cada dos horas**.
+Otra cosa es las que hace: GitHub no garantiza los horarios, y de las doce diarias
+que pedimos hacía unas cinco en septiembre de 2026 y unas tres en noviembre.
 
 Esto empezó siendo un horario fino (a las 00:07, justo después de que salgan los
 episodios) y acabó siendo esto. La razón es que **la hora que le pides a GitHub no
@@ -148,11 +189,12 @@ público los minutos de Actions son gratis e ilimitados.
 | Archivo | Para qué sirve |
 |---|---|
 | `podcasts.py` | **La lista de podcasts.** Lo único que vas a querer tocar |
-| `ivoox.py` | Lee la web de iVoox y saca título, portada, descripción y duración |
+| `ivoox.py` | Lee iVoox (el RSS y, si falla, la web) y saca título, portada, descripción y duración |
+| `apple.py` | Busca el enlace directo al episodio en Apple Podcasts |
 | `telegram.py` | Monta el mensaje bonito y lo publica (y lo ancla, si toca) |
 | `main.py` | Decide qué es nuevo y qué no |
 | `pruebas.py` | Comprueba que nada se ha roto. **Ejecútalo siempre antes de subir** |
-| `estado.json` | La memoria: por dónde va cada podcast |
+| `estado.json` | La memoria: de qué episodios se ha avisado ya |
 
 Las pruebas se ejecutan también solas dentro del propio GitHub Actions, antes de
 publicar nada. Si algo estuviera roto, se para ahí y no manda mensajes raros.
@@ -180,6 +222,11 @@ Lo de los diez días es la red de seguridad: si iVoox reordena su catálogo o re
 algo antiguo, que no te llegue de madrugada un aviso de un programa de hace dos años.
 La lista se queda en los últimos 400 episodios, así que el archivo no crece: un kilobyte.
 
+El mismo archivo guarda qué podcasts **conoce** ya el bot. Cuando añades uno nuevo
+a `podcasts.py`, la primera vez que lo ve apunta sus episodios y no avisa de
+ninguno; empieza a avisar con el siguiente que salga. Sin esto, añadir un programa
+soltaría de golpe todos sus episodios de la última semana.
+
 ## Si algo va mal
 
 - **No llega nada**: mira el registro en la pestaña *Actions*. Ahí está escrito en
@@ -189,3 +236,5 @@ La lista se queda en los últimos 400 episodios, así que el archivo no crece: u
 - **"not enough rights"**: le falta permiso para publicar o para anclar.
 - **"no he encontrado ni un episodio"**: iVoox ha cambiado su web. Habrá que tocar
   `ivoox.py`.
+- **"Apple no contesta" o "Apple todavía no tiene el episodio"**: no es un fallo. El
+  mensaje sale igual, con el botón de Apple apuntando al programa.

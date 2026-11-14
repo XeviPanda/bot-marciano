@@ -28,6 +28,7 @@ import email.utils
 import html as htmlmod
 import json
 import re
+import time
 import xml.etree.ElementTree as ET
 
 import requests
@@ -41,6 +42,7 @@ CABECERAS = {
 }
 
 TIEMPO_MAXIMO = 30  # segundos que esperamos a que iVoox conteste
+PAUSA_ANTES_DE_REINTENTAR = 4
 
 # Cuántas letras de la descripción metemos en el mensaje. Telegram no deja pasar
 # de 1024 caracteres en el pie de una foto, y con esto vamos sobrados.
@@ -52,8 +54,17 @@ EPISODIOS_QUE_MIRAMOS = 25
 
 
 def _descargar(url):
-    respuesta = requests.get(url, headers=CABECERAS, timeout=TIEMPO_MAXIMO)
-    respuesta.raise_for_status()
+    # Si iVoox tose (un error suelto, un corte), esperamos un poco y probamos
+    # otra vez antes de rendirnos. La mayoría de los fallos son de un segundo.
+    for intento in (1, 2):
+        try:
+            respuesta = requests.get(url, headers=CABECERAS, timeout=TIEMPO_MAXIMO)
+            respuesta.raise_for_status()
+            break
+        except Exception:
+            if intento == 2:
+                raise
+            time.sleep(PAUSA_ANTES_DE_REINTENTAR)
 
     # Cuando el servidor no dice en qué juego de caracteres manda el texto, la
     # librería supone ISO-8859-1, que es el de hace treinta años. iVoox manda
@@ -67,7 +78,7 @@ def _descargar(url):
 
 # El número que identifica a un episodio sale de su dirección:
 #   https://www.ivoox.com/lo-que-sea-audios-mp3_rf_182949557_1.html
-# Ese número SIEMPRE va a más, y es lo único que usamos para saber qué es nuevo.
+# Es único para cada episodio, pero OJO: no siempre va a más (ver main.py).
 NUMERO_DE_EPISODIO = re.compile(r"_rf_(\d+)_1\.html")
 
 
@@ -98,6 +109,7 @@ def desde_el_rss(id_ivoox):
             continue
 
         imagen = item.find(ITUNES + "image")
+        descripcion = item.findtext("description") or ""
 
         episodios.append({
             "id": int(numero.group(1)),
@@ -105,8 +117,9 @@ def desde_el_rss(id_ivoox):
             "fecha": _fecha(item.findtext("pubDate")),
             "ficha": {
                 "titulo": limpiar(item.findtext("title") or ""),
-                "descripcion": recortar(limpiar(item.findtext("description") or ""),
+                "descripcion": recortar(limpiar(sin_aviso_de_pago(descripcion)),
                                         LARGO_DESCRIPCION),
+                "de_pago": es_de_pago(descripcion),
                 "portada": (imagen.get("href") if imagen is not None else "") or "",
                 "duracion": duracion_en_bonito(item.findtext(ITUNES + "duration") or ""),
                 "podcast": "",   # lo pone main.py, con el nombre de podcasts.py
@@ -229,14 +242,41 @@ def detalle(url_episodio, id_ivoox_esperado=None):
         if f"_sq_f{id_ivoox_esperado}_" not in serie:
             return None
 
+    descripcion = ficha.get("description", "") or ""
+
     return {
         "titulo": limpiar(ficha.get("name", "")),
-        "descripcion": recortar(limpiar(ficha.get("description", "")), LARGO_DESCRIPCION),
+        "descripcion": recortar(limpiar(sin_aviso_de_pago(descripcion)), LARGO_DESCRIPCION),
+        "de_pago": es_de_pago(descripcion),
         "portada": ficha.get("image", "") or "",
         "duracion": duracion_en_bonito(ficha.get("duration", "")),
         "podcast": "",
         "url": ficha.get("url") or url_episodio,
     }
+
+
+# ---------------------------------------------------------------------------
+# Episodios de pago (los de mecenas)
+# ---------------------------------------------------------------------------
+# iVoox les pone delante de la descripción siempre la misma frase:
+#   "Agradece a este podcast tantas horas de entretenimiento y disfruta de
+#    episodios exclusivos como éste. ¡Apóyale en iVoox!"
+# Nos sirve para dos cosas: saber que el episodio es de pago, y quitarla, que
+# en el mensaje no pinta nada y se come media descripción.
+
+AVISO_DE_PAGO = re.compile(
+    r"(<a[^>]*>\s*)?Agradece a este podcast.{0,160}?episodios exclusivos como [ée]ste\."
+    r"\s*¡Ap[óo]yale en iVoox!(\s*</a>)?\s*",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def es_de_pago(descripcion):
+    return bool(AVISO_DE_PAGO.search(descripcion or ""))
+
+
+def sin_aviso_de_pago(descripcion):
+    return AVISO_DE_PAGO.sub("", descripcion or "", count=1)
 
 
 # ---------------------------------------------------------------------------

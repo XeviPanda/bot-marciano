@@ -25,6 +25,18 @@ LIMITE_PIE_DE_FOTO = 1024
 # podcast y se elige en podcasts.py.
 EMOJI_DE_TODOS = "🎙️"
 
+# Lo que pone en cada botón. Se cambia aquí y cambia en todos los mensajes.
+BOTON_IVOOX = "▶️ Escuchar en iVoox"
+BOTON_IVOOX_MECENAS = "🔒 Escuchar en iVoox"
+OTROS_BOTONES = [          # en este orden salen, de izquierda a derecha
+    ("apple", "🟣 Apple"),
+    ("spotify", "🟢 Spotify"),
+    ("podimo", "🎧 Podimo"),
+]
+
+# La línea que sale bajo el título en los episodios de pago.
+AVISO_MECENAS = "🔒 <i>Episodio para mecenas</i>"
+
 
 def _token():
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
@@ -92,6 +104,9 @@ def formatear(episodio):
     partes = [cabecera, ""]
     partes.append(f"<b>{escapar(episodio['titulo'])}</b>")
 
+    if episodio.get("de_pago"):
+        partes.append(AVISO_MECENAS)
+
     if episodio.get("descripcion"):
         partes += ["", escapar(episodio["descripcion"])]
 
@@ -108,13 +123,24 @@ def formatear(episodio):
 
 
 def botones(episodio):
-    """Los botones de 'escuchar aquí' que van debajo del mensaje."""
-    fila = [{"text": "▶️ Escuchar en iVoox", "url": episodio["url"]}]
+    """
+    Los botones de 'escuchar aquí' que van debajo del mensaje.
 
-    if episodio.get("spotify"):
-        fila.append({"text": "🎧 Spotify", "url": episodio["spotify"]})
+    Arriba, a todo lo ancho, iVoox, que es la casa. Debajo, en una fila, los
+    demás sitios donde esté el programa. Si el episodio es de mecenas solo sale
+    iVoox, porque es el único sitio donde se puede escuchar.
+    """
+    if episodio.get("de_pago"):
+        return {"inline_keyboard": [[{"text": BOTON_IVOOX_MECENAS, "url": episodio["url"]}]]}
 
-    return {"inline_keyboard": [fila]}
+    filas = [[{"text": BOTON_IVOOX, "url": episodio["url"]}]]
+
+    otros = [{"text": texto, "url": episodio[sitio]}
+             for sitio, texto in OTROS_BOTONES if episodio.get(sitio)]
+    if otros:
+        filas.append(otros)
+
+    return {"inline_keyboard": filas}
 
 
 # ---------------------------------------------------------------------------

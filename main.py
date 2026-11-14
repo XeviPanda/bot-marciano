@@ -24,6 +24,7 @@ import sys
 import time
 import traceback
 
+import apple
 import ivoox
 import podcasts
 import telegram
@@ -64,27 +65,36 @@ CUANTOS_RECORDAMOS = 400
 
 def cargar_estado():
     if not os.path.exists(ARCHIVO_ESTADO):
-        return {"avisados": []}
+        return {"avisados": [], "conocidos": []}
     try:
         with open(ARCHIVO_ESTADO, encoding="utf-8") as archivo:
             datos = json.load(archivo)
     except Exception:
         print("⚠️  estado.json ilegible. Empiezo de cero: esta vez no aviso de nada.")
-        return {"avisados": []}
+        return {"avisados": [], "conocidos": []}
 
-    if "avisados" in datos:
-        datos["avisados"] = [int(x) for x in datos["avisados"]]
-        return datos
+    if "avisados" not in datos:
+        # Archivo del formato viejo (el de "ultimos"): no sabemos de qué se avisó
+        # exactamente, así que empezamos de cero y nos callamos esta vez.
+        print("⚠️  estado.json es del formato viejo. Apunto lo que hay y no aviso de nada.")
+        return {"avisados": [], "conocidos": []}
 
-    # Archivo del formato viejo (el de "ultimos"): no sabemos de qué se avisó
-    # exactamente, así que empezamos de cero y nos callamos esta vez.
-    print("⚠️  estado.json es del formato viejo. Apunto lo que hay y no aviso de nada.")
-    return {"avisados": []}
+    datos["avisados"] = [int(x) for x in datos["avisados"]]
+
+    # "conocidos" son los podcasts que ya hemos mirado alguna vez. Los archivos
+    # de antes de noviembre de 2026 no lo traían: en ese caso, si hay episodios
+    # apuntados, damos por conocidos todos los podcasts de la lista de hoy.
+    if "conocidos" not in datos:
+        datos["conocidos"] = ([p["id_ivoox"] for p in podcasts.PODCASTS]
+                              if datos["avisados"] else [])
+    datos["conocidos"] = [str(x) for x in datos["conocidos"]]
+    return datos
 
 
 def guardar_estado(estado):
     with open(ARCHIVO_ESTADO, "w", encoding="utf-8") as archivo:
-        json.dump({"avisados": estado["avisados"][-CUANTOS_RECORDAMOS:]},
+        json.dump({"avisados": estado["avisados"][-CUANTOS_RECORDAMOS:],
+                   "conocidos": estado["conocidos"]},
                   archivo, ensure_ascii=False, indent=1)
 
 
@@ -119,10 +129,12 @@ def episodios_nuevos_de(podcast, estado, estrenar=False):
     if not visibles:
         raise RuntimeError("no he encontrado ni un episodio (¿ha cambiado la web?)")
 
-    # Primera vez de todas: apuntamos lo que hay y NO avisamos. Si no, el primer
-    # día llegarían cientos de mensajes con episodios viejos. (Con --estreno sí
-    # sacamos el último de cada uno, para que un canal nuevo no nazca vacío.)
-    if not estado["avisados"]:
+    # Primera vez que vemos ESTE podcast (porque el bot es nuevo, o porque lo
+    # acabas de añadir a la lista): apuntamos lo que hay y NO avisamos. Si no,
+    # el día que añadas un programa llegarían de golpe sus episodios de la última
+    # semana. (Con --estreno sí sacamos el último, para que no nazca vacío.)
+    if podcast["id_ivoox"] not in estado["conocidos"]:
+        estado["conocidos"].append(podcast["id_ivoox"])
         if estrenar:
             apuntar(estado, visibles[1:])
             return [visibles[0]], False
@@ -149,6 +161,23 @@ def episodios_nuevos_de(podcast, estado, estrenar=False):
     return nuevos, False
 
 
+def donde_mas_escucharlo(podcast, episodio, ficha):
+    """Los enlaces para los botones de Apple, Spotify y Podimo de este episodio."""
+    # Los episodios de mecenas solo se pueden escuchar en iVoox.
+    if ficha.get("de_pago"):
+        return {"apple": "", "spotify": "", "podimo": ""}
+
+    return {
+        # Apple es el único que nos deja buscar el enlace directo al episodio.
+        "apple": (apple.enlace(podcast["apple"], episodio["id"])
+                  if podcast.get("apple") else ""),
+        # De estos dos solo tenemos la dirección del programa, que ya vale:
+        # el episodio nuevo es el primero que sale al abrirlo.
+        "spotify": podcast.get("spotify", ""),
+        "podimo": podcast.get("podimo", ""),
+    }
+
+
 def main():
     if "--prueba" in sys.argv:
         print("Enviando mensaje de prueba…")
@@ -159,7 +188,6 @@ def main():
             "duracion": "0 min",
             "portada": "",
             "url": "https://www.ivoox.com",
-            "spotify": "",
             "emoji": "🤖",
         })
         return 0
@@ -217,17 +245,22 @@ def main():
             # (el de Marcianos, por ejemplo, lleva un punto final: "Marcianos en
             # un Tren."). Así el mensaje sale siempre igual y tú lo controlas.
             ficha["podcast"] = nombre
-            ficha["spotify"] = podcast.get("spotify", "")
             ficha["emoji"] = podcast.get("emoji", "")
+            ficha.update(donde_mas_escucharlo(podcast, episodio, ficha))
 
-            print(f"   · {ficha['titulo'][:70]}")
+            print(f"   · {ficha['titulo'][:70]}" + ("  🔒" if ficha.get("de_pago") else ""))
 
             if modo_seco:
+                botones = telegram.botones(ficha)["inline_keyboard"]
+                print("     botones: " + " | ".join(b["text"] for fila in botones for b in fila))
                 continue
 
             if telegram.publicar(ficha):
                 publicados += 1
                 apuntar(estado, [episodio])   # ya está fuera: no repetirlo
+                # Guardamos YA, no al final: si el programa se cayera después,
+                # no queremos que la próxima pasada repita este mensaje.
+                guardar_estado(estado)
                 time.sleep(2)
             else:
                 print("      No ha salido. Lo dejo para la próxima vez.")
